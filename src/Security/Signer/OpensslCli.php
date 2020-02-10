@@ -9,6 +9,13 @@ class OpensslCli extends Signer
 {
     private $toolPath;
 
+    /**
+     * OpensslCli constructor.
+     * @param $certificatePath
+     * @param $privateKeyPath
+     * @param null $privateKeyPassword
+     * @param string $toolPath
+     */
     public function __construct(
         $certificatePath,
         $privateKeyPath,
@@ -19,6 +26,11 @@ class OpensslCli extends Signer
         $this->toolPath = $toolPath;
     }
 
+    /**
+     * @param string $message
+     * @return bool|string
+     * @throws SignException
+     */
     public function sign($message)
     {
         return $this->runParameters([
@@ -29,6 +41,12 @@ class OpensslCli extends Signer
         ], $message);
     }
 
+    /**
+     * @param array $parameters
+     * @param $input
+     * @return bool|string
+     * @throws SignException
+     */
     private function runParameters(array $parameters, $input)
     {
         array_unshift($parameters, $this->toolPath);
@@ -38,6 +56,10 @@ class OpensslCli extends Signer
 
     /**
      * Runs command with input from STDIN.
+     * @param $command
+     * @param $input
+     * @return bool|string
+     * @throws SignException
      */
     private function run($command, $input)
     {

@@ -10,6 +10,10 @@ class EsiaService implements EsiaServiceInterface
 {
     private $provider;
 
+    /**
+     * EsiaService constructor.
+     * @param ProviderInterface $provider
+     */
     public function __construct(ProviderInterface $provider)
     {
         $this->provider = $provider;
