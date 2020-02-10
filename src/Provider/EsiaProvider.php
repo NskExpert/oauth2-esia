@@ -6,6 +6,7 @@ use Ekapusta\OAuth2Esia\Interfaces\Provider\ProviderInterface;
 use Ekapusta\OAuth2Esia\Interfaces\Security\SignerInterface;
 use Ekapusta\OAuth2Esia\Interfaces\Token\ScopedTokenInterface;
 use Ekapusta\OAuth2Esia\Security\Signer\Exception\SignException;
+use Ekapusta\OAuth2Esia\Security\Signer\OpensslPkcs7;
 use Ekapusta\OAuth2Esia\Token\EsiaAccessToken;
 use Exception;
 use InvalidArgumentException;
@@ -33,11 +34,30 @@ class EsiaProvider extends AbstractProvider implements ProviderInterface
 
     const RESOURCES = __DIR__.'/../../resources/';
 
+    /**
+     * @var array
+     */
     protected $defaultScopes = ['openid', 'fullname'];
 
+    /**
+     * @var string
+     */
     protected $remoteUrl = 'https://esia.gosuslugi.ru';
 
+    /**
+     * @var string
+     */
     protected $remoteCertificatePath = self::RESOURCES.'esia.prod.cer';
+
+    /**
+     * @var string
+     */
+    public $signerType;
+
+    /**
+     * @var array
+     */
+    public $signerOptions = [];
 
     /**
      * @var SignerInterface
@@ -63,13 +83,6 @@ class EsiaProvider extends AbstractProvider implements ProviderInterface
         if (!file_exists($this->remoteCertificatePath)) {
             throw new InvalidArgumentException('Remote certificate is not provided!');
         }
-
-        if (isset($collaborators['signer']) && $collaborators['signer'] instanceof SignerInterface) {
-            $this->signer = $collaborators['signer'];
-            $this->encoder = new Encoder();
-        } else {
-            throw new InvalidArgumentException('Signer is not provided!');
-        }
     }
 
     /**
@@ -78,6 +91,29 @@ class EsiaProvider extends AbstractProvider implements ProviderInterface
     public function getBaseAuthorizationUrl()
     {
         return $this->getUrl('/aas/oauth2/ac');
+    }
+
+    /**
+     * @return Encoder
+     */
+    public function getEncoder()
+    {
+        if (empty($this->encoder)) {
+            $this->encoder = new Encoder();
+        }
+        return $this->encoder;
+    }
+
+    /**
+     * @return SignerInterface
+     */
+    public function getSigner()
+    {
+        //TODO: Сделать обработку других типов подписчиков
+        if (empty($this->signer)) {
+            $this->signer = new OpensslPkcs7($this->signerOptions['certificate'], $this->signerOptions['key']);
+        }
+        return $this->signer;
     }
 
     /**
@@ -105,8 +141,8 @@ class EsiaProvider extends AbstractProvider implements ProviderInterface
     private function withClientSecret(array $params)
     {
         $message = $params['scope'].$params['timestamp'].$params['client_id'].$params['state'];
-        $signature = $this->signer->sign($message);
-        $params['client_secret'] = $this->encoder->base64UrlEncode($signature);
+        $signature = $this->getSigner()->sign($message);
+        $params['client_secret'] = $this->getEncoder()->base64UrlEncode($signature);
 
         return $params;
     }
