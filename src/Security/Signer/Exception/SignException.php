@@ -2,15 +2,17 @@
 
 namespace Ekapusta\OAuth2Esia\Security\Signer\Exception;
 
+use Exception;
+
 /**
  * Exception thrown if the signature fails.
  */
-class SignException extends \Exception
+class SignException extends Exception
 {
     /**
      * @param string $path
      *
-     * @return \Ekapusta\OAuth2Esia\Security\Signer\Exception\SignException
+     * @return SignException
      */
     public static function canNotReadCertificate($path)
     {
@@ -20,7 +22,7 @@ class SignException extends \Exception
     /**
      * @param string $path
      *
-     * @return \Ekapusta\OAuth2Esia\Security\Signer\Exception\SignException
+     * @return SignException
      */
     public static function canNotReadPrivateKey($path)
     {
@@ -31,7 +33,7 @@ class SignException extends \Exception
      * @param string $reason
      * @param int    $code
      *
-     * @return \Ekapusta\OAuth2Esia\Security\Signer\Exception\SignException
+     * @return SignException
      */
     public static function signFailedAsOf($reason, $code = 0)
     {

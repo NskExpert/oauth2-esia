@@ -5,29 +5,59 @@ namespace Ekapusta\OAuth2Esia\Provider;
 use Ekapusta\OAuth2Esia\Interfaces\Provider\ProviderInterface;
 use Ekapusta\OAuth2Esia\Interfaces\Security\SignerInterface;
 use Ekapusta\OAuth2Esia\Interfaces\Token\ScopedTokenInterface;
+use Ekapusta\OAuth2Esia\Security\Signer\Exception\SignException;
+use Ekapusta\OAuth2Esia\Security\Signer\OpensslPkcs7;
 use Ekapusta\OAuth2Esia\Token\EsiaAccessToken;
+use Exception;
 use InvalidArgumentException;
 use Lcobucci\JWT\Parsing\Encoder;
 use League\OAuth2\Client\Grant\AbstractGrant;
 use League\OAuth2\Client\Provider\AbstractProvider;
 use League\OAuth2\Client\Provider\Exception\IdentityProviderException;
 use League\OAuth2\Client\Provider\GenericResourceOwner;
+use League\OAuth2\Client\Provider\ResourceOwnerInterface;
 use League\OAuth2\Client\Token\AccessToken;
+use League\OAuth2\Client\Token\AccessTokenInterface;
 use League\OAuth2\Client\Tool\BearerAuthorizationTrait;
+use LogicException;
+use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Ramsey\Uuid\Uuid;
 
+/**
+ * Class EsiaProvider
+ * @package Ekapusta\OAuth2Esia\Provider
+ */
 class EsiaProvider extends AbstractProvider implements ProviderInterface
 {
     use BearerAuthorizationTrait;
 
     const RESOURCES = __DIR__.'/../../resources/';
 
+    /**
+     * @var array
+     */
     protected $defaultScopes = ['openid', 'fullname'];
 
+    /**
+     * @var string
+     */
     protected $remoteUrl = 'https://esia.gosuslugi.ru';
 
+    /**
+     * @var string
+     */
     protected $remoteCertificatePath = self::RESOURCES.'esia.prod.cer';
+
+    /**
+     * @var string
+     */
+    public $signerType;
+
+    /**
+     * @var array
+     */
+    public $signerOptions = [];
 
     /**
      * @var SignerInterface
@@ -39,6 +69,11 @@ class EsiaProvider extends AbstractProvider implements ProviderInterface
      */
     private $encoder;
 
+    /**
+     * EsiaProvider constructor.
+     * @param array $options
+     * @param array $collaborators
+     */
     public function __construct(array $options = [], array $collaborators = [])
     {
         parent::__construct($options, $collaborators);
@@ -48,20 +83,44 @@ class EsiaProvider extends AbstractProvider implements ProviderInterface
         if (!file_exists($this->remoteCertificatePath)) {
             throw new InvalidArgumentException('Remote certificate is not provided!');
         }
-
-        if (isset($collaborators['signer']) && $collaborators['signer'] instanceof SignerInterface) {
-            $this->signer = $collaborators['signer'];
-            $this->encoder = new Encoder();
-        } else {
-            throw new InvalidArgumentException('Signer is not provided!');
-        }
     }
 
+    /**
+     * @return string
+     */
     public function getBaseAuthorizationUrl()
     {
         return $this->getUrl('/aas/oauth2/ac');
     }
 
+    /**
+     * @return Encoder
+     */
+    public function getEncoder()
+    {
+        if (empty($this->encoder)) {
+            $this->encoder = new Encoder();
+        }
+        return $this->encoder;
+    }
+
+    /**
+     * @return SignerInterface
+     */
+    public function getSigner()
+    {
+        //TODO: Сделать обработку других типов подписчиков
+        if (empty($this->signer)) {
+            $this->signer = new OpensslPkcs7($this->signerOptions['certificate'], $this->signerOptions['key']);
+        }
+        return $this->signer;
+    }
+
+    /**
+     * @param array $options
+     * @return array
+     * @throws SignException
+     */
     protected function getAuthorizationParameters(array $options)
     {
         $options = [
@@ -77,43 +136,71 @@ class EsiaProvider extends AbstractProvider implements ProviderInterface
      * @param array $params
      *
      * @return array
+     * @throws SignException
      */
     private function withClientSecret(array $params)
     {
         $message = $params['scope'].$params['timestamp'].$params['client_id'].$params['state'];
-        $signature = $this->signer->sign($message);
-        $params['client_secret'] = $this->encoder->base64UrlEncode($signature);
+        $signature = $this->getSigner()->sign($message);
+        $params['client_secret'] = $this->getEncoder()->base64UrlEncode($signature);
 
         return $params;
     }
 
+    /**
+     * @param int $length
+     * @return string
+     * @throws Exception
+     */
     protected function getRandomState($length = 32)
     {
         return Uuid::uuid4()->toString();
     }
 
+    /**
+     * @return string
+     * @throws Exception
+     */
     public function generateState()
     {
         return $this->getRandomState();
     }
 
+    /**
+     * @return false|string
+     */
     private function getTimeStamp()
     {
         return date('Y.m.d H:i:s O');
     }
 
+    /**
+     * @param array $params
+     * @return string
+     */
     public function getBaseAccessTokenUrl(array $params)
     {
         return $this->getUrl('/aas/oauth2/te');
     }
 
+    /**
+     * @param AccessToken $token
+     * @return string
+     */
     public function getResourceOwnerDetailsUrl(AccessToken $token)
     {
+        if (!$token instanceof ScopedTokenInterface) {
+            throw new LogicException('Токен должен реализовывать интерфейс ' . ScopedTokenInterface::class);
+        }
         $embeds = $this->getResourceOwnerEmbeds($token);
 
         return $this->getUrl('/rs/prns/'.$token->getResourceOwnerId().'?embed=('.implode(',', $embeds).')');
     }
 
+    /**
+     * @param ScopedTokenInterface $token
+     * @return array
+     */
     private function getResourceOwnerEmbeds(ScopedTokenInterface $token)
     {
         $allowedScopes = $token->getScopes();
@@ -155,21 +242,37 @@ class EsiaProvider extends AbstractProvider implements ProviderInterface
         return $allowedEmbeds;
     }
 
+    /**
+     * @param $path
+     * @return string
+     */
     private function getUrl($path)
     {
         return $this->remoteUrl.$path;
     }
 
+    /**
+     * @return array
+     */
     protected function getDefaultScopes()
     {
         return $this->defaultScopes;
     }
 
+    /**
+     * @return string
+     */
     protected function getScopeSeparator()
     {
         return ' ';
     }
 
+    /**
+     * @param array $params
+     * @return RequestInterface
+     * @throws SignException
+     * @throws Exception
+     */
     protected function getAccessTokenRequest(array $params)
     {
         $params = $params + [
@@ -182,6 +285,11 @@ class EsiaProvider extends AbstractProvider implements ProviderInterface
         return parent::getAccessTokenRequest($this->withClientSecret($params));
     }
 
+    /**
+     * @param ResponseInterface $response
+     * @param array|string $data
+     * @throws IdentityProviderException
+     */
     protected function checkResponse(ResponseInterface $response, $data)
     {
         if ($response->getStatusCode() >= 400 || isset($data['error'])) {
@@ -193,11 +301,21 @@ class EsiaProvider extends AbstractProvider implements ProviderInterface
         }
     }
 
+    /**
+     * @param array $response
+     * @param AbstractGrant $grant
+     * @return EsiaAccessToken|AccessTokenInterface
+     */
     protected function createAccessToken(array $response, AbstractGrant $grant)
     {
         return new EsiaAccessToken($response, $this->remoteCertificatePath);
     }
 
+    /**
+     * @param array $response
+     * @param AccessToken $token
+     * @return GenericResourceOwner|ResourceOwnerInterface
+     */
     protected function createResourceOwner(array $response, AccessToken $token)
     {
         $response = ['resourceOwnerId' => $token->getResourceOwnerId()] + $response;

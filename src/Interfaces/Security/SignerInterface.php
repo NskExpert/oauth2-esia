@@ -2,12 +2,14 @@
 
 namespace Ekapusta\OAuth2Esia\Interfaces\Security;
 
+use Ekapusta\OAuth2Esia\Security\Signer\Exception\SignException;
+
 interface SignerInterface
 {
     /**
      * @param string $message
      *
-     * @throws \Ekapusta\OAuth2Esia\Security\Signer\Exception\SignException
+     * @throws SignException
      *
      * @return string
      */

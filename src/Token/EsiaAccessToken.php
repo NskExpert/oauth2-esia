@@ -14,6 +14,11 @@ class EsiaAccessToken extends AccessToken implements ScopedTokenInterface
 {
     private $parsedToken;
 
+    /**
+     * EsiaAccessToken constructor.
+     * @param array $options
+     * @param null $publicKeyPath
+     */
     public function __construct(array $options = [], $publicKeyPath = null)
     {
         parent::__construct($options);
@@ -34,6 +39,9 @@ class EsiaAccessToken extends AccessToken implements ScopedTokenInterface
         }
     }
 
+    /**
+     * @return array|string[]
+     */
     public function getScopes()
     {
         $scopes = [];
