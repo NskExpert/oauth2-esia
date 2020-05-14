@@ -111,7 +111,7 @@ class EsiaProvider extends AbstractProvider implements ProviderInterface
     {
         //TODO: Сделать обработку других типов подписчиков
         if (empty($this->signer)) {
-            $this->signer = new OpensslPkcs7($this->signerOptions['certificate'], $this->signerOptions['key']);
+            $this->signer = new OpensslPkcs7($this->signerOptions['certificate'], $this->signerOptions['key'], $this->signerOptions['keyPassword'] ?? null);
         }
         return $this->signer;
     }
