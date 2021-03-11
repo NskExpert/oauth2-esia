@@ -9,6 +9,7 @@ use Ekapusta\OAuth2Esia\Security\Signer\Exception\SignException;
 use Ekapusta\OAuth2Esia\Security\Signer\OpensslPkcs7;
 use Ekapusta\OAuth2Esia\Token\EsiaAccessToken;
 use Exception;
+use GuzzleHttp\Client as HttpClient;
 use InvalidArgumentException;
 use Lcobucci\JWT\Parsing\Encoder;
 use League\OAuth2\Client\Grant\AbstractGrant;
@@ -83,6 +84,17 @@ class EsiaProvider extends AbstractProvider implements ProviderInterface
         if (!file_exists($this->remoteCertificatePath)) {
             throw new InvalidArgumentException('Remote certificate is not provided!');
         }
+
+        //TODO Вернуть проверку
+        if (empty($collaborators['httpClient'])) {
+            $client_options = $this->getAllowedClientOptions($options);
+            $client_options[] = ['verify'];
+
+            $collaborators['httpClient'] = new HttpClient(
+                array_intersect_key(array_merge($options,['verify' => false]), array_flip($client_options))
+            );
+        }
+        $this->setHttpClient($collaborators['httpClient']);
     }
 
     /**
