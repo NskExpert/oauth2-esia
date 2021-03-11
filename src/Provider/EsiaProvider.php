@@ -86,14 +86,12 @@ class EsiaProvider extends AbstractProvider implements ProviderInterface
         }
 
         //TODO Вернуть проверку
-        if (empty($collaborators['httpClient'])) {
-            $client_options = $this->getAllowedClientOptions($options);
-            $client_options[] = ['verify'];
+        $client_options = $this->getAllowedClientOptions($options);
+        $client_options[] = 'verify';
 
-            $collaborators['httpClient'] = new HttpClient(
-                array_intersect_key(array_merge($options,['verify' => false]), array_flip($client_options))
-            );
-        }
+        $collaborators['httpClient'] = new HttpClient(
+            array_intersect_key(array_merge($options, ['verify' => false]), array_flip($client_options))
+        );
         $this->setHttpClient($collaborators['httpClient']);
     }
 
